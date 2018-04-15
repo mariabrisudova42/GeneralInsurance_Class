@@ -1,6 +1,9 @@
-
-
-# Define a server for the Shiny app
-function(input, output) {
-
+server<-function(input, output) {
+    output$plot <- renderPlot(
+        ggplot(data = dt_KPI,
+       mapping = aes_string(x = "Premium", y = "Expenses", colour = input$select)
+) +
+geom_point() +
+geom_smooth()
+    )
 }
