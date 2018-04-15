@@ -1,6 +1,5 @@
 fluidPage(    
   
-  # Give the page a title
   titlePanel("Lesson 1 - Homework"),
   
 
