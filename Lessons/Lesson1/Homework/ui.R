@@ -1,6 +1,3 @@
-
-
-# Use a fluid Bootstrap layout
 fluidPage(    
   
   # Give the page a title
@@ -10,12 +7,14 @@ fluidPage(
   sidebarLayout(      
     
 
-    sidebarPanel(
+    sidebarPanel(selectInput("select", label = h3("Colouring var:"), 
+    choices = list("Region" = "Region", "Unit" = "Unit", "Segment" = "Segment", "Business" = "Business", "Year" = "Year"), 
+    selected = 1)
 
     ),
     
     
-    mainPanel(
+    mainPanel(plotOutput(outputId = "plot")
        
     )
     
