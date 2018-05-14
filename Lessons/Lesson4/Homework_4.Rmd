@@ -1,0 +1,145 @@
+---
+title: "Homework_4_1.cast"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(dplyr)
+dt_Policy <- read.csv("../../data/policy_history.csv") %>% distinct(NrPolicy, NrObject, .keep_all = TRUE) 
+```
+
+```{r}
+dt_Claims <- read.csv("../../data/claims.csv") %>% distinct(NrClaim, .keep_all = TRUE)
+```
+
+```{r}
+dt_pol_w_claims <- left_join(dt_Policy, 
+                             dt_Claims, 
+                             by = c("NrPolicy", "NrObject")
+                    )
+head(dt_pol_w_claims)
+```
+
+
+```{r}
+# tip: there is a great package for date manipulation called lubridate
+library(lubridate)
+dt_pol_w_claims <- 
+  dt_pol_w_claims %>% mutate(Time_Exposure = lubridate::dmy(Dt_Exp_End) - lubridate::dmy(Dt_Exp_Start))
+```
+
+
+#### Ultimate Losses and Burning Cost
+
+```{r}
+dt_pol_w_claims <- 
+  dt_pol_w_claims %>% 
+  mutate(Ult_Loss = Paid + Reserves,
+         Burning_Cost = ifelse(is.na(Ult_Loss), 0,  Ult_Loss / as.integer(Time_Exposure))
+  )
+```
+
+
+## One-Way Analysis
+Perfect! It looks like we have found a good target, which might be a good measure for risky clients.
+
+`Veh_type1`
+
+```{r}
+library(ggplot2)
+dt_pol_w_claims %>% 
+  ggplot(aes(y = Burning_Cost, x = Veh_type1)) + 
+  geom_jitter()
+```
+
+levels(dt_pol_w_claims$Veh_type1)
+#Zdá sa, že najväčší burning cost má skupina Private, Commercial car <3100 kg, Commercial car <3500 kg, Driving school car a Driving school motorcycle. (To sú tí najrizikovejší.)
+
+```{r}
+dt_pol_w_claims %>% 
+  group_by(Veh_type1) %>% 
+  filter(Burning_Cost != 0) %>%
+  summarise(BC_avg = mean(Burning_Cost, na.rm  = TRUE),
+            BC_median = median(Burning_Cost, na.rm = TRUE),
+            cnt = n()) %>% 
+  arrange(desc(BC_avg))
+```
+
+#Na základe priemeru Burning_cost sa zdá byť najrizikovejšia skupina Tow-car, na základe mediánu sa zdá byť najrizikovejšia skupina Taxi. Na predchádzajúcom grafe sa nám síce zdalo, že skupina Private car je najrizikovejšia (t.j. má najväčší Burning cost), ale na základe priemeru a mediánu sa ukazuje, že je menej rizikovejšia, lebo nízkych Burning_costov je tam pravdepodobne veľa. To sa dá vidieť aj na nasledujúcom histograme.
+
+```{r}
+dt_pol_w_claims %>% 
+  ggplot(aes(y = Burning_Cost, x = Veh_type1)) + 
+  geom_boxplot() +
+  ylim(0, 100)
+```
+
+#Vidíme, že aj v tomto prípade nám to kazia outlieri, čiže táto vlastnosť nie je sama o sebe dobrým prediktorom, ale môže byť užitočná pri modelovaní.
+
+'D_age'
+dt_pol_w_claims<-dt_pol_w_claims %>% filter(D_age<100)
+
+```{r}
+library(ggplot2)
+dt_pol_w_claims %>% 
+  ggplot(aes(y = Burning_Cost, x = D_age)) + 
+  geom_jitter()
+```
+
+
+#Zdá sa, že najväčší Burning_Cost má skupina 40-60-ročných. Pozrieme sa na to a základe priemeru a mediánu.
+
+```{r}
+dt_pol_w_claims %>% 
+  group_by(D_age) %>% 
+  filter(Burning_Cost != 0) %>%
+  summarise(BC_avg = mean(Burning_Cost, na.rm  = TRUE),
+            BC_median = median(Burning_Cost, na.rm = TRUE),
+            cnt = n()) %>% 
+  arrange(desc(BC_avg)) #arrange(desc(BC_median))
+```
+
+#Na základe priemeru Burning_cost sa zdajú byť najrizikovejší 60-ročný šoféri, na základe mediánu Burning_cost sa zdajú byť najrizikovejší 69-ročný šoféri.
+
+```{r}
+dt_pol_w_claims %>% 
+  ggplot(aes(y = Burning_Cost, x = D_age)) + 
+  geom_boxplot() +
+  ylim(0, 100)
+```
+
+
+
+#GLM model
+
+```{r}
+library(ggplot2)
+ggplot(data = dt_pol_w_claims,
+                aes(x = Burning_Cost)) +
+geom_histogram()
+```
+
+```{r}
+library(ggplot2)
+ggplot(data = dt_pol_w_claims %>% filter(Burning_Cost != 0, Burning_Cost < 100),
+                aes(x = Burning_Cost)) +
+geom_histogram()
+```
+
+```{r}
+model1 <- glm(data = dt_pol_w_claims %>% filter(Burning_Cost != 0, Burning_Cost < 100),
+              formula = Burning_Cost ~ Veh_type1 + D_age,
+              family = Gamma())
+```
+
+```{r}
+summary(model1)
+```
+
+# Zo summary() vidno, že významné premenné sú intercept,  Veh_type1commercial car <3100 kg, Veh_type1commercial car <3500 kg, Veh_type1driving school car, Veh_type1private car a Veh_type1taxi category A. 
+# Mali by sme však použiť viac premmých z našich dát a vytvoriť bohatší model, teda s viacerými premennými. Ja by som vytvorila viac modelov a potom ich porovnala na základe Akaikeho kritéria.
